@@ -1,0 +1,10 @@
+{
+  "platformName": "Android",
+  "appium:automationName": "UiAutomator2",
+  "appium:deviceName": "Pixel_7a",
+  "appium:app": "./app/seuapp.apk",
+  "appium:appWaitActivity": "*",
+  "appium:noReset": false,
+  "appium:autoGrantPermissions": true,
+  "appium:chromedriverAutodownload": true
+}

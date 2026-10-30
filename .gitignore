@@ -1,0 +1,7 @@
+*.apk
+node_modules/
+.env
+results/
+videos/
+screenshots/
+.video-reporter-screenshots/
