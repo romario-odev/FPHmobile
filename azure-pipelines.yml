@@ -12,7 +12,14 @@ pr:
     include:
       - main
       - develop
-
+schedules:
+  - cron: "0 */4 * * *"
+    displayName: A cada 4 horas
+    branches:
+      include:
+        - main
+        - develop
+    always: true
 pool:
   vmImage: 'windows-latest'
 
