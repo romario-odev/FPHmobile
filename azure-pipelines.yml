@@ -1,0 +1,67 @@
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    include:
+      - '**'
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  nodeVersion: '18.x'
+
+stages:
+  - stage: Build
+    displayName: 'Build and Test'
+    jobs:
+      - job: E2ETests
+        displayName: 'Run E2E Tests'
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: $(nodeVersion)
+            displayName: 'Install Node.js'
+
+          - task: Npm@1
+            inputs:
+              command: 'install'
+            displayName: 'Install Dependencies'
+
+          - task: CmdLine@2
+            displayName: 'Setup Android Environment'
+            inputs:
+              script: |
+                echo "Checking Android SDK installation"
+                echo %ANDROID_HOME%
+                echo %ANDROID_SDK_ROOT%
+
+          - task: CmdLine@2
+            displayName: 'Run E2E Tests'
+            inputs:
+              script: 'npm run t'
+            continueOnError: true
+
+          - task: PublishTestResults@2
+            displayName: 'Publish Test Results'
+            condition: always()
+            inputs:
+              testResultsFiles: '**/results/reports/*.json'
+              testRunTitle: 'E2E Test Results'
+              mergeTestResults: true
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Test Artifacts'
+            condition: always()
+            inputs:
+              PathtoPublish: 'results'
+              ArtifactName: 'test-results'
+              publishLocation: 'Container'
