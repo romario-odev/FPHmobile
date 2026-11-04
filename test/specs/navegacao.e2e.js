@@ -10,6 +10,7 @@ describe('Navegação - Menu Principal', () => {
     beforeEach(async () => {
         await openApp();
         await LoginPage.realizarLogin(emailValido, senhaValida);
+        await HomePage.fecharPopupNovosEventos();
     });
 
     const fluxos = [

@@ -4,7 +4,8 @@ const Page = require('./page');
 class HomePage extends Page {
     get saudacao() { return $('~home-saudacao'); }
     get alertNovosEventos() { return $('android=new UiSelector().text("Novos eventos adicionados!")'); }
-    get btnDesativarAlertas() { return $('android=new UiSelector().text("Desativar alertas")'); }
+    get btnIrParaHome() { return $('~home-new-events-modal-go-home'); }
+    get btnDesativarAlertas() { return $('~home-new-events-modal-disable-alerts'); }
     get btnLogout() { return $('~[FALTA NA PBI: botao de logout]'); }
     get loadingSpinner() { return $('~[FALTA NA PBI: seletor do componente de carregamento]'); }
     get msgErro() { return $('android=new UiSelector().text("Não foi possível carregar os dados")'); }
@@ -15,6 +16,7 @@ class HomePage extends Page {
     get menuFinanceiro() { return $('~menu-financeiro'); }
     get menuPerfil() { return $('~menu-perfil'); }
     get tituloTela() { return $('~header-titulo'); }
+    get ultimasNotificacoes() { return $('android=new UiSelector().text("Últimas notícias")'); }
 
     async clicarMenu(opcao) {
         const menus = {
@@ -29,6 +31,29 @@ class HomePage extends Page {
 
     async desativarAlertas() {
         await this.waitAndClick(this.btnDesativarAlertas);
+    }
+
+    async fecharPopupNovosEventos() {
+        // Verifica se o pop-up está visível e clica em "Ir para Home"
+        try {
+            await this.btnIrParaHome.waitForDisplayed({ timeout: 5000 });
+            await this.waitAndClick(this.btnIrParaHome);
+            console.log('Pop-up de novos eventos fechado');
+        } catch (e) {
+            console.log('Pop-up não estava visível, continuando...');
+        }
+    }
+
+    async rolarParaNotificacoes() {
+        // Rola para cima para visualizar as últimas notificações
+        await driver.execute('mobile: scrollGesture', {
+            left: 500,
+            top: 1000,
+            width: 200,
+            height: 200,
+            direction: 'down',
+            percent: 1.0
+        });
     }
 
     async realizarLogout() {
