@@ -1,5 +1,11 @@
 const fs = require('fs');
+require('dotenv').config();
 const { generateTestReport, generateDashboard } = require('./utils/reports');
+
+// Ensure JAVA_HOME is set for Appium
+if (!process.env.JAVA_HOME) {
+    process.env.JAVA_HOME = 'C:\\Program Files\\Amazon Corretto\\jdk17.0.21_0';
+}
 
 exports.config = {
     runner: 'local',
@@ -9,9 +15,9 @@ exports.config = {
     services: [['appium', { command: 'appium', args: { allowCors: true } }]],
     capabilities: [{
         'platformName': 'Android',
-        'appium:deviceName': 'Pixel_7a',
+        'appium:deviceName': 'emulator-5554',
         'appium:automationName': 'UiAutomator2',
-        'appium:app': './app/seuapp.apk',
+        'appium:app': './app/app-release.apk',
         'appium:appWaitActivity': '*',
         'appium:chromedriverAutodownload': true,
         'appium:noReset': false,

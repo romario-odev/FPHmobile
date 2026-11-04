@@ -4,8 +4,8 @@ const HomePage = require('../pageobjects/home.page');
 const { openApp } = require('../../utils/openApp');
 
 describe('Navegação - Menu Principal', () => {
-    const emailValido = 'day,mesoli@gmail.com';
-    const senhaValida = '123';
+    const emailValido = process.env.USER_EMAIL;
+    const senhaValida = process.env.USER_PASSWORD;
 
     beforeEach(async () => {
         await openApp();
