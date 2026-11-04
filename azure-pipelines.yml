@@ -12,6 +12,7 @@ pr:
     include:
       - main
       - develop
+
 schedules:
   - cron: "0 */4 * * *"
     displayName: A cada 4 horas
@@ -20,6 +21,7 @@ schedules:
         - main
         - develop
     always: true
+
 pool:
   vmImage: 'windows-latest'
 
@@ -62,9 +64,21 @@ stages:
                 echo USER_EMAIL=$(USER_EMAIL) > .env
                 echo USER_PASSWORD=$(USER_PASSWORD) >> .env
                 
-                echo "Android SDK should be pre-installed on windows-latest"
+                echo "Android SDK pre-installed paths:"
                 echo %ANDROID_HOME%
                 echo %ANDROID_SDK_ROOT%
+
+          - task: CmdLine@2
+            displayName: 'Start Android Emulator & Appium'
+            inputs:
+              script: |
+                echo "Iniciando criacao e boot do emulador headless..."
+                echo no | "%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager.bat" create avd -n Pixel_7a -k "system-images;android-33;google_apis;x86_64" --force
+                start "" "%ANDROID_HOME%\emulator\emulator.exe" -avd Pixel_7a -no-window -no-audio -no-snapshot -no-boot-anim
+                "%ANDROID_HOME%\platform-tools\adb.exe" wait-for-device
+                
+                echo "Iniciando Appium em segundo plano..."
+                start "" npx appium --allow-cors
 
           - task: CmdLine@2
             displayName: 'Run E2E Tests'
