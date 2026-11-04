@@ -25,9 +25,7 @@ pool:
 
 variables:
   nodeVersion: '18.x'
-  # Configure estas variáveis como secrets no Azure DevOps (Library)
-  USER_EMAIL: '$(USER_EMAIL)'
-  USER_PASSWORD: '$(USER_PASSWORD)'
+  - group: e2e-test-credentials
 
 stages:
   - stage: Build
