@@ -26,7 +26,8 @@ pool:
   vmImage: 'windows-latest'
 
 variables:
-  nodeVersion: '18.x'
+  - name: nodeVersion
+    value: '18.x'
   - group: e2e-test-credentials
 
 stages:
