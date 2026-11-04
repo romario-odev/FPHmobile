@@ -1,8 +1,8 @@
 {
   "platformName": "Android",
   "appium:automationName": "UiAutomator2",
-  "appium:deviceName": "Pixel_7a",
-  "appium:app": "./app/seuapp.apk",
+  "appium:deviceName": "emulator-5554",
+  "appium:app": "./app/app-release.apk",
   "appium:appWaitActivity": "*",
   "appium:noReset": false,
   "appium:autoGrantPermissions": true,
