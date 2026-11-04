@@ -25,6 +25,9 @@ pool:
 
 variables:
   nodeVersion: '18.x'
+  # Configure estas variáveis como secrets no Azure DevOps (Library)
+  USER_EMAIL: '$(USER_EMAIL)'
+  USER_PASSWORD: '$(USER_PASSWORD)'
 
 stages:
   - stage: Build
@@ -47,7 +50,21 @@ stages:
             displayName: 'Setup Android Environment'
             inputs:
               script: |
-                echo "Checking Android SDK installation"
+                echo "Installing Java"
+                winget install Amazon.Corretto.17.JDK --accept-source-agreements --accept-package-agreements
+                
+                echo "Setting JAVA_HOME"
+                setx JAVA_HOME "C:\Program Files\Amazon Corretto\jdk17.0.21_0"
+                set JAVA_HOME=C:\Program Files\Amazon Corretto\jdk17.0.21_0
+                
+                echo "Java version:"
+                java -version
+                
+                echo "Creating .env file"
+                echo USER_EMAIL=$(USER_EMAIL) > .env
+                echo USER_PASSWORD=$(USER_PASSWORD) >> .env
+                
+                echo "Android SDK should be pre-installed on windows-latest"
                 echo %ANDROID_HOME%
                 echo %ANDROID_SDK_ROOT%
 
