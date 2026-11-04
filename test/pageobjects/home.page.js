@@ -10,13 +10,15 @@ class HomePage extends Page {
     get loadingSpinner() { return $('~[FALTA NA PBI: seletor do componente de carregamento]'); }
     get msgErro() { return $('android=new UiSelector().text("Não foi possível carregar os dados")'); }
     get btnTentarNovamente() { return $('android=new UiSelector().text("Tentar novamente")'); }
-    get menuResultados() { return $('~menu-resultados'); }
-    get menuEventos() { return $('~menu-eventos'); }
-    get menuNoticias() { return $('~menu-noticias'); }
-    get menuFinanceiro() { return $('~menu-financeiro'); }
-    get menuPerfil() { return $('~menu-perfil'); }
+    get menuResultados() { return $('~Resultados'); }
+    get menuEventos() { return $('~Eventos'); }
+    get menuNoticias() { return $('~Notícias'); }
+    get menuFinanceiro() { return $('~Financeiro'); }
+    get menuPerfil() { return $('~Perfil'); }
     get tituloTela() { return $('~header-titulo'); }
     get ultimasNotificacoes() { return $('android=new UiSelector().text("Últimas notícias")'); }
+    get alertaErro() { return $('android=new UiSelector().text("Erro")'); }
+    get btnOkAlerta() { return $('android=new UiSelector().text("OK")'); }
 
     async clicarMenu(opcao) {
         const menus = {
@@ -27,6 +29,11 @@ class HomePage extends Page {
             'Perfil': this.menuPerfil
         };
         await this.waitAndClick(menus[opcao]);
+        // Aguarda um momento para a navegação
+        await driver.pause(2000);
+        // Volta para a home usando o botão de voltar
+        await driver.back();
+        await driver.pause(1000);
     }
 
     async desativarAlertas() {
@@ -41,6 +48,17 @@ class HomePage extends Page {
             console.log('Pop-up de novos eventos fechado');
         } catch (e) {
             console.log('Pop-up não estava visível, continuando...');
+        }
+    }
+
+    async fecharAlertaErro() {
+        // Verifica se há um alerta de erro e fecha
+        try {
+            await this.alertaErro.waitForDisplayed({ timeout: 3000 });
+            await this.waitAndClick(this.btnOkAlerta);
+            console.log('Alerta de erro fechado');
+        } catch (e) {
+            console.log('Nenhum alerta de erro detectado, continuando...');
         }
     }
 

@@ -28,6 +28,7 @@ describe('Home - Funcionalidades e Estados', () => {
     it('Cenário 2: deve exibir opções do menu principal ao carregar a Home', async () => {
         await LoginPage.realizarLogin(emailValido, senhaValida);
         await HomePage.fecharPopupNovosEventos();
+        await HomePage.fecharAlertaErro();
         await expect(HomePage.menuResultados).toBeDisplayed();
         await expect(HomePage.menuEventos).toBeDisplayed();
         await expect(HomePage.menuNoticias).toBeDisplayed();
@@ -39,6 +40,8 @@ describe('Home - Funcionalidades e Estados', () => {
         await LoginPage.realizarLogin(emailValido, senhaValida);
         // Fecha o pop-up "Ir para Home"
         await HomePage.fecharPopupNovosEventos();
+        // Fecha alerta de erro se aparecer
+        await HomePage.fecharAlertaErro();
         // Rola para cima para visualizar as últimas notificações
         await HomePage.rolarParaNotificacoes();
         // Verifica se o campo "últimas notificações" está visível

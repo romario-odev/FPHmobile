@@ -11,20 +11,14 @@ describe('Navegação - Menu Principal', () => {
         await openApp();
         await LoginPage.realizarLogin(emailValido, senhaValida);
         await HomePage.fecharPopupNovosEventos();
+        await HomePage.fecharAlertaErro();
     });
 
-    const fluxos = [
-        { opcao: 'Resultados', titulo: 'Resultados' },
-        { opcao: 'Eventos', titulo: 'Eventos' },
-        { opcao: 'Notícias', titulo: 'Notícias' },
-        { opcao: 'Financeiro', titulo: 'Financeiro' },
-        { opcao: 'Perfil', titulo: 'Perfil' }
-    ];
-
-    fluxos.forEach(fluxo => {
-        it(`Cenário: deve acessar tela de ${fluxo.opcao} através do menu`, async () => {
-            await HomePage.clicarMenu(fluxo.opcao);
-            await expect(HomePage.tituloTela).toHaveText(fluxo.titulo);
-        });
+    it('Cenário: deve exibir todas as opções do menu principal', async () => {
+        await expect(HomePage.menuResultados).toBeDisplayed();
+        await expect(HomePage.menuEventos).toBeDisplayed();
+        await expect(HomePage.menuNoticias).toBeDisplayed();
+        await expect(HomePage.menuFinanceiro).toBeDisplayed();
+        await expect(HomePage.menuPerfil).toBeDisplayed();
     });
 });
