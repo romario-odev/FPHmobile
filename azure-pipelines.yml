@@ -36,6 +36,7 @@ stages:
     jobs:
       - job: E2ETests
         displayName: 'Run E2E Tests'
+        timeoutInMinutes: 30
         steps:
           - task: NodeTool@0
             inputs:
@@ -48,63 +49,135 @@ stages:
             displayName: 'Install Dependencies'
 
           - task: CmdLine@2
-            displayName: 'Setup Android Environment'
+            displayName: 'Setup Environment'
             inputs:
               script: |
                 echo "Checking Java installation"
                 java -version
                 if %errorlevel% neq 0 (
-                  echo "Java not found, checking for AdoptOpenJDK..."
-                  where java
-                )
-
-                echo "Setting JAVA_HOME if not set"
-                if "%JAVA_HOME%"=="" (
-                  set JAVA_HOME=C:\Program Files\Amazon\Corretto\jdk17.0.21_0
+                  echo "Java not found, setting JAVA_HOME to default Windows JDK"
+                  set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.8.101-hotspot
                 )
                 echo JAVA_HOME=%JAVA_HOME%
 
-                echo "Creating .env file"
-                echo USER_EMAIL=$(USER_EMAIL) > .env
-                echo USER_PASSWORD=$(USER_PASSWORD) >> .env
-
-                echo "Android SDK pre-installed paths:"
+                echo "Checking Android SDK"
                 echo ANDROID_HOME=%ANDROID_HOME%
                 echo ANDROID_SDK_ROOT=%ANDROID_SDK_ROOT%
 
+                echo "Creating .env file"
+                if not defined USER_EMAIL (
+                  echo "ERROR: USER_EMAIL variable not set in pipeline variables"
+                  exit 1
+                )
+                if not defined USER_PASSWORD (
+                  echo "ERROR: USER_PASSWORD variable not set in pipeline variables"
+                  exit 1
+                )
+                echo USER_EMAIL=$(USER_EMAIL) > .env
+                echo USER_PASSWORD=$(USER_PASSWORD) >> .env
+                echo .env file created successfully
+
                 echo "Checking if APK exists"
                 if exist app\app-release.apk (
-                  echo "APK found"
+                  echo "APK found: app\app-release.apk"
+                  dir app\app-release.apk
                 ) else (
-                  echo "WARNING: APK not found at app\app-release.apk"
+                  echo "ERROR: APK not found at app\app-release.apk"
+                  exit 1
                 )
 
           - task: CmdLine@2
-            displayName: 'Start Android Emulator & Appium'
+            displayName: 'List Android System Images'
             inputs:
               script: |
-                echo "Iniciando criacao e boot do emulador headless..."
+                echo "Listing available system images..."
+                "%ANDROID_HOME%\cmdline-tools\latest\bin\sdkmanager.bat" --list | findstr system-images
+
+          - task: CmdLine@2
+            displayName: 'Create Android Emulator'
+            inputs:
+              script: |
+                echo "Checking if emulator already exists..."
+                "%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager.bat" list avd
+                echo.
+
+                echo "Creating emulator Pixel_7a..."
                 echo no | "%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager.bat" create avd -n Pixel_7a -k "system-images;android-33;google_apis;x86_64" --force
-                start "" "%ANDROID_HOME%\emulator\emulator.exe" -avd Pixel_7a -no-window -no-audio -no-snapshot -no-boot-anim
+                echo Emulator created successfully
+
+          - task: CmdLine@2
+            displayName: 'Start Android Emulator'
+            inputs:
+              script: |
+                echo "Starting emulator in headless mode..."
+                start "" "%ANDROID_HOME%\emulator\emulator.exe" -avd Pixel_7a -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect
+
+                echo "Waiting for device to be ready..."
                 "%ANDROID_HOME%\platform-tools\adb.exe" wait-for-device
+                echo Device is ready
 
-                echo "Waiting for emulator to fully boot..."
-                timeout /t 60
+                echo "Waiting for emulator to fully boot (checking bootanim)..."
+                :bootloop
+                "%ANDROID_HOME%\platform-tools\adb.exe" shell getprop init.svc.bootanim > boot_status.txt
+                findstr /C:"stopped" boot_status.txt >nul
+                if %errorlevel% equ 0 (
+                    echo Boot animation stopped - emulator ready
+                    del boot_status.txt
+                    goto :bootdone
+                )
+                timeout /t 5
+                goto :bootloop
+                :bootdone
 
-                echo "Iniciando Appium em segundo plano..."
+                echo "Waiting additional time for system to stabilize..."
+                timeout /t 30
+
+                echo "Checking device properties"
+                "%ANDROID_HOME%\platform-tools\adb.exe" shell getprop ro.build.version.release
+                "%ANDROID_HOME%\platform-tools\adb.exe" devices
+
+          - task: CmdLine@2
+            displayName: 'Start Appium Server'
+            inputs:
+              script: |
+                echo "Starting Appium server in background..."
                 start /B cmd /c "npx appium --allow-cors > appium.log 2>&1"
 
                 echo "Waiting for Appium to start..."
-                timeout /t 10
+                timeout /t 15
 
-                echo "Appium log:"
-                type appium.log
+                echo "Checking Appium log:"
+                if exist appium.log (
+                    type appium.log
+                ) else (
+                    echo Appium log not found yet
+                )
+
+                echo "Appium should be ready now"
 
           - task: CmdLine@2
             displayName: 'Run E2E Tests'
             inputs:
-              script: 'npm run t'
+              script: |
+                echo "Running E2E tests..."
+                echo Current directory:
+                cd
+                echo.
+                echo Listing test files:
+                dir test\specs
+                echo.
+                npm run t
             continueOnError: true
+
+          - task: CmdLine@2
+            displayName: 'Collect Emulator Logs'
+            condition: always()
+            inputs:
+              script: |
+                echo "Collecting emulator logs..."
+                if not exist results mkdir results
+                "%ANDROID_HOME%\platform-tools\adb.exe" logcat -d > results\emulator.log 2>&1
+                echo Logs saved to results\emulator.log
 
           - task: PublishTestResults@2
             displayName: 'Publish Test Results'

@@ -5,62 +5,123 @@ Os testes não rodavam no Azure DevOps e você não visualizava o gráfico de pi
 
 ## Causas Identificadas
 
-### 1. Formato de Resultados Incompatível
-- **Antes**: O script gerava JSON customizado em `results/reports/*.json`
-- **Problema**: Azure DevOps `PublishTestResults@2` não aceita JSON customizado
-- **Solução**: Adicionar geração de JUnit XML (`results/junit.xml`)
+### 1. Appium Duplicado
+- **Problema**: O `wdio.conf.js` iniciava Appium automaticamente, mas o pipeline também tentava iniciar manualmente
+- **Resultado**: Conflito de portas e falha de conexão
+- **Solução**: Detectar ambiente CI (`TF_BUILD`) e desabilitar serviço Appium no wdio.conf.js quando no Azure DevOps
 
-### 2. Caminho Errado no Pipeline
-- **Antes**: `testResultsFiles: '**/results/reports/*.json'`
-- **Problema**: Arquivo não existia ou não estava no formato esperado
-- **Solução**: `testResultsFiles: '**/results/junit.xml'` com formato `JUnit`
+### 2. Emulador Android não boots completamente
+- **Problema**: Timeout fixo de 60s pode não ser suficiente
+- **Solução**: Implementar loop para verificar se `bootanim` está parado (indica boot completo)
 
-### 3. Appium em Background
-- **Antes**: `start "" npx appium --allow-cors`
-- **Problema**: O comando `start` no Windows não funciona bem no Azure DevOps agent
-- **Solução**: Usar `start /B cmd /c` com redirecionamento de log e espera explícita
+### 3. Variáveis de ambiente não validadas
+- **Problema**: Pipeline falhava silenciosamente se `USER_EMAIL` ou `USER_PASSWORD` não estivessem definidos
+- **Solução**: Adicionar verificação explícita e falhar com erro claro
 
-### 4. Falta de Espera
-- **Antes**: Iniciava Appium e rodava testes imediatamente
-- **Problema**: Appium pode não estar pronto quando os testes começam
-- **Solução**: Adicionar `timeout /t 10` para aguardar Appium iniciar
+### 4. Java não configurado corretamente
+- **Problema**: Caminho hardcoded pode não existir no Azure DevOps agent
+- **Solução**: Tentar múltiplos caminhos comuns e detectar automaticamente
+
+### 5. Falta de logs de depuração
+- **Problema**: Difícil diagnosticar falhas sem logs detalhados
+- **Solução**: Adicionar logs de emulador, Appium e verificação de dispositivo
 
 ## Mudanças Realizadas
 
-### 1. utils/reports.js
-- ✅ Adicionado campo `suite` para agrupar testes por suite
-- ✅ Gerar arquivo `junit.xml` no formato padrão do Azure DevOps
-- ✅ Manter HTML dashboard para visualização local
-- ✅ Manter JSON para uso interno
+### 1. azure-pipelines.yml
 
-**Formato JUnit gerado:**
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="FPH Mobile E2E Tests" tests="2" failures="0" errors="0" skipped="0" time="5.0">
-  <testsuite name="Home Tests" tests="1" failures="0" errors="0" skipped="0" time="2.5">
-    <testcase name="Teste de login" time="2.5"/>
-  </testsuite>
-  <testsuite name="Navegação" tests="1" failures="0" errors="0" skipped="0" time="2.5">
-    <testcase name="Teste de navegação" time="2.5"/>
-  </testsuite>
-</testsuites>
+#### Configurações Gerais
+- ✅ Adicionado `timeoutInMinutes: 30` no job (emulador pode demorar)
+- ✅ Melhorado step "Setup Environment" com validações
+- ✅ Separado criação do emulador em step próprio
+- ✅ Adicionado step para listar imagens Android disponíveis
+- ✅ Melhorado boot do emulador com verificação de `bootanim`
+- ✅ Adicionado step específico para iniciar Appium
+- ✅ Adicionado coleta de logs do emulador (logcat)
+
+#### Detalhes Importantes
+
+**Setup Environment:**
+```yaml
+- Valida se USER_EMAIL e USER_PASSWORD estão definidos
+- Verifica se APK existe antes de rodar
+- Lista paths de Android SDK
 ```
 
-### 2. azure-pipelines.yml
-- ✅ Removido `winget` (não está disponível no Azure DevOps agent)
-- ✅ Adicionado verificação de Java pré-instalado
-- ✅ Adicionado verificação de APK antes de rodar testes
-- ✅ Melhorado inicialização do Appium com logging
-- ✅ Adicionado espera para emulador e Appium
-- ✅ Alterado `testResultsFormat` para `JUnit`
-- ✅ Alterado `testResultsFiles` para `**/results/junit.xml`
-- ✅ Adicionado `failTaskOnFailedTests: false` para não falhar o pipeline se testes falharem
+**List Android System Images:**
+```yaml
+- Lista imagens disponíveis para debugging
+- Ajuda a identificar se android-33 existe
+```
 
-### 3. docker-compose.yml (NOVO)
-- ✅ Criado para desenvolvimento local
-- ✅ Simplificado (apenas Node.js + dependências)
-- ✅ Não inclui Android Emulator (limitação técnica)
-- ✅ Usa `network_mode: host` para acessar ADB do host
+**Create Android Emulator:**
+```yaml
+- Verifica se já existe (evita erro)
+- Usa --force para recriar se necessário
+```
+
+**Start Android Emulator:**
+```yaml
+- Usa -gpu swiftshader_indirect (melhor performance em CI)
+- Loop para verificar bootanim (aguarda boot completo)
+- Timeout adicional de 30s após boot
+- Verifica versão Android e dispositivo conectado
+```
+
+**Start Appium Server:**
+```yaml
+- Inicia em background com logging
+- Aguarda 15s para Appium estar pronto
+- Exibe log para debugging
+```
+
+**Collect Emulator Logs:**
+```yaml
+- Coleta logcat do emulador
+- Salva em results/emulator.log
+- Executa sempre (condition: always())
+```
+
+### 2. wdio.conf.js
+
+#### Detecção de Ambiente CI
+```javascript
+const isCI = process.env.TF_BUILD === 'true';
+```
+
+#### Configuração Dinâmica de Appium
+```javascript
+// No CI: Appium iniciado manualmente pelo pipeline
+// Local: Appium iniciado automaticamente pelo wdio service
+services: isCI ? [] : [['appium', { command: 'appium', args: { allowCors: true } }]]
+```
+
+#### Detecção Automática de Java
+```javascript
+const possibleJavaPaths = [
+    'C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.8.101-hotspot',
+    'C:\\Program Files\\Amazon Corretto\\jdk17.0.21_0',
+    'C:\\Program Files\\Java\\jdk-17'
+];
+```
+
+#### Melhorias de Logging
+- Log se está rodando em CI
+- Log do JAVA_HOME configurado
+- Log das capabilities antes de iniciar sessão
+- Tratamento de erro ao tirar screenshot
+
+### 3. utils/reports.js (Mantido)
+- ✅ Gera JUnit XML para Azure DevOps
+- ✅ Gera HTML dashboard para visualização local
+- ✅ Gera JSON para uso interno
+
+### 4. start-appium.js (NOVO)
+Script opcional para iniciar Appium manualmente (útil para desenvolvimento local)
+
+### 5. package.json
+- ✅ Adicionado script `start:appium`
+- ✅ Adicionado script `test:ci`
 
 ## Como Visualizar o Gráfico de Pizza no Azure DevOps
 
@@ -79,26 +140,25 @@ Se a aba "Tests" não aparecer:
 - Verifique se o task `PublishTestResults@2` rodou com sucesso
 - Confirme que há pelo menos 1 teste no arquivo XML
 
-## Comparação com ybera
+## Pré-requisitos no Azure DevOps
 
-### ybera
-- Usa **testes unitários/integração** .NET
-- Formato nativo (NUnit/xUnit) já compatível com Azure DevOps
-- Dashboard visual é nativo do Azure DevOps
-- Não precisa de conversão de formato
+### 1. Variable Group: e2e-test-credentials
+Você precisa criar um variable group no Azure DevOps com:
+- `USER_EMAIL`: Email para login no app
+- `USER_PASSWORD`: Senha para login no app
 
-### FPHmobile
-- Usa **testes E2E mobile** (WebdriverIO)
-- Formato customizado precisa ser convertido para JUnit
-- Dashboard HTML é adicional (para visualização local)
-- JUnit XML permite visualização no Azure DevOps
+**Como criar:**
+1. Acesse: Pipelines → Library
+2. Clique em + Variable group
+3. Nome: `e2e-test-credentials`
+4. Adicione as variáveis acima
+5. Marque como "Secret" para `USER_PASSWORD`
 
-## Próximos Passos
-
-1. **Commit e push** das mudanças
-2. **Rodar o pipeline** no Azure DevOps
-3. **Verificar** se a aba "Tests" aparece com o gráfico
-4. **Configurar** APK no Azure DevOps (se necessário)
+### 2. Self-hosted Agent (Opcional)
+Se o `windows-latest` não tiver Android SDK configurado corretamente, considere usar um self-hosted agent com:
+- Android Studio/SDK instalado
+- Java 17 instalado
+- Habilite virtualização
 
 ## Solução de Problemas
 
@@ -109,17 +169,55 @@ Se a aba "Tests" não aparecer:
 
 ### "Appium não inicia"
 - Verifique o log `appium.log` nos artifacts
-- Aumente o timeout de espera para Appium (atualmente 10s)
+- Aumente o timeout de espera para Appium (atualmente 15s)
 - Verifique se Java está instalado no agent
+- Verifique se há conflito de porta 4723
 
 ### "Emulador não inicia"
-- Windows-latest agent tem Android SDK pré-instalado
-- O comando `avdmanager create avd` pode precisar de ajustes
-- Considere usar um emulador pré-configurado ou imagem customizada
+- Verifique o step "List Android System Images" para ver se android-33 existe
+- Se não existir, mude para uma versão disponível (android-34, android-35)
+- Verifique logs do emulador em `results/emulator.log`
+- Considere aumentar o timeout do job (atualmente 30 minutos)
+
+### "APK não encontrado"
+- O APK está em `app/app-release.apk` (123MB)
+- Verifique se está commitado no repo
+- O pipeline verifica isso antes de rodar os testes
+
+### "Connection timeout ao conectar Appium"
+- Verifique se Appium iniciou corretamente (log `appium.log`)
+- Aumente `connectionRetryTimeout` no wdio.conf.js (atualmente 120000ms)
+- Verifique se emulador está respondendo: `adb devices`
+
+### "Java não encontrado"
+- O wdio.conf.js tenta múltiplos caminhos
+- Adicione o caminho correto no pipeline se necessário
+- Use o Java pré-instalado no Azure DevOps agent
+
+## Comandos Úteis
+
+### Rodar Pipeline
+```bash
+git add .
+git commit -m "fix(ci): configurar pipeline para Azure DevOps"
+git push azure main
+```
+
+### Rodar Localmente
+```bash
+# Com emulador rodando
+npm run t
+
+# Com Appium manual
+npm run start:appium
+# Em outro terminal
+npm run t
+```
 
 ## Recursos Adicionais
 
 - Documentação PublishTestResults: https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/test/publish-test-results
 - Formato JUnit XML: https://llg.cubic.org/docs/junit/
+- Windows-latest Agent: https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/hosted
 - FPHmobile README: `README_TESTES.md`
 - Docker setup: `DOCKER_SETUP.md`

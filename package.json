@@ -6,7 +6,9 @@
   "scripts": {
     "t": "wdio run ./wdio.conf.js",
     "t:headed": "wdio run ./wdio.conf.js --headed",
-    "inspector": "appium --use-plugins=inspector"
+    "inspector": "appium --use-plugins=inspector",
+    "start:appium": "node start-appium.js",
+    "test:ci": "wdio run ./wdio.conf.js"
   },
   "keywords": [],
   "author": "",
