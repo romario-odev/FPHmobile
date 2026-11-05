@@ -32,7 +32,8 @@ function generateTestReport({ test, status, timestamp, screenshotBuffer, videoBu
         status: status,
         timestamp: timestamp,
         error: context.error ? context.error.message : null,
-        duration: test.duration
+        duration: test.duration,
+        suite: test.parent || 'Default Suite'
     });
     
     fs.writeFileSync(resultsFile, JSON.stringify(testResults, null, 2));
@@ -41,7 +42,7 @@ function generateTestReport({ test, status, timestamp, screenshotBuffer, videoBu
 function generateDashboard() {
     const resultsDir = './results';
     const resultsFile = `${resultsDir}/test-results-temp.json`;
-    
+
     let testResults = [];
     if (fs.existsSync(resultsFile)) {
         try {
@@ -50,8 +51,8 @@ function generateDashboard() {
             testResults = [];
         }
     }
-    
-    // Gerar JSON para Azure Pipelines
+
+    // Gerar JSON para uso local
     const jsonResults = {
         summary: {
             total: testResults.length,
@@ -61,6 +62,53 @@ function generateDashboard() {
         tests: testResults
     };
     fs.writeFileSync(`${resultsDir}/test-results.json`, JSON.stringify(jsonResults, null, 2));
+
+    // Gerar JUnit XML para Azure DevOps (compatível com PublishTestResults)
+    const xmlHeader = '<?xml version="1.0" encoding="UTF-8"?>';
+    const totalTests = testResults.length;
+    const failures = testResults.filter(r => r.status === 'failed').length;
+    const errors = 0;
+    const skipped = 0;
+    const totalDuration = testResults.reduce((sum, t) => sum + (t.duration || 0), 0);
+
+    // Agrupar por suite
+    const suites = {};
+    testResults.forEach(test => {
+        const suiteName = test.suite || 'Default Suite';
+        if (!suites[suiteName]) {
+            suites[suiteName] = [];
+        }
+        suites[suiteName].push(test);
+    });
+
+    let junitXml = `${xmlHeader}\n<testsuites name="FPH Mobile E2E Tests" tests="${totalTests}" failures="${failures}" errors="${errors}" skipped="${skipped}" time="${totalDuration / 1000}">\n`;
+
+    Object.keys(suites).forEach(suiteName => {
+        const suiteTests = suites[suiteName];
+        const suiteFailures = suiteTests.filter(t => t.status === 'failed').length;
+        const suiteDuration = suiteTests.reduce((sum, t) => sum + (t.duration || 0), 0);
+
+        junitXml += `  <testsuite name="${suiteName}" tests="${suiteTests.length}" failures="${suiteFailures}" errors="0" skipped="0" time="${suiteDuration / 1000}">\n`;
+
+        suiteTests.forEach(test => {
+            const testDuration = (test.duration || 0) / 1000;
+            const testName = test.title.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const error = test.error ? test.error.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+
+            if (test.status === 'failed') {
+                junitXml += `    <testcase name="${testName}" time="${testDuration}">\n`;
+                junitXml += `      <failure message="${error}"><![CDATA[${error}]]></failure>\n`;
+                junitXml += `    </testcase>\n`;
+            } else {
+                junitXml += `    <testcase name="${testName}" time="${testDuration}"/>\n`;
+            }
+        });
+
+        junitXml += `  </testsuite>\n`;
+    });
+
+    junitXml += '</testsuites>';
+    fs.writeFileSync(`${resultsDir}/junit.xml`, junitXml);
 
     // Gerar HTML Dashboard
     const passedCount = testResults.filter(r => r.status === 'passed').length;
@@ -97,7 +145,7 @@ function generateDashboard() {
         <h1>📊 Test Results Dashboard</h1>
         <p>Automated E2E Tests - FPH Mobile</p>
     </div>
-    
+
     <div class="summary">
         <div class="card">
             <h2>${totalCount}</h2>
@@ -133,14 +181,15 @@ function generateDashboard() {
 </html>`;
 
     fs.writeFileSync(`${resultsDir}/index.html`, html);
-    
+
     // Limpar arquivo temporário
     if (fs.existsSync(resultsFile)) {
         fs.unlinkSync(resultsFile);
     }
-    
+
     console.log('Dashboard generated at results/index.html');
     console.log('JSON results generated at results/test-results.json');
+    console.log('JUnit XML generated at results/junit.xml (for Azure DevOps)');
 }
 
 module.exports = { generateTestReport, generateDashboard };

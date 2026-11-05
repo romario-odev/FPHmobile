@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+results/*
+!results/.gitkeep
+app/*.apk
+.DS_Store
+*.md
+azure-pipelines.yml
+*.ps1

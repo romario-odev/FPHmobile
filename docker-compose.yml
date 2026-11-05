@@ -1,0 +1,32 @@
+name: fphmobile-e2e
+
+# Docker Compose para FPH Mobile E2E Tests
+# NOTA: Este é um ambiente de suporte. Android Emulator não roda bem em Docker
+# devido a requisitos de virtualização/hardware. Use este para desenvolvimento local.
+
+services:
+  # Container para desenvolvimento e execução de testes
+  # Requer emulador Android ou dispositivo conectado no host
+  e2e-tests:
+    container_name: fphmobile-e2e
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      # Estas variáveis serão injetadas pelo host ou arquivo .env
+      - USER_EMAIL=${USER_EMAIL}
+      - USER_PASSWORD=${USER_PASSWORD}
+    network_mode: host
+    # Comando para aguardar dispositivo e rodar testes
+    command: >
+      sh -c "
+        echo 'Aguardando dispositivo Android...' &&
+        adb wait-for-device &&
+        echo 'Dispositivo conectado!' &&
+        npm run t
+      "
+    depends_on: []

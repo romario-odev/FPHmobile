@@ -51,23 +51,33 @@ stages:
             displayName: 'Setup Android Environment'
             inputs:
               script: |
-                echo "Installing Java"
-                winget install Amazon.Corretto.17.JDK --accept-source-agreements --accept-package-agreements
-                
-                echo "Setting JAVA_HOME"
-                setx JAVA_HOME "C:\Program Files\Amazon Corretto\jdk17.0.21_0"
-                set JAVA_HOME=C:\Program Files\Amazon Corretto\jdk17.0.21_0
-                
-                echo "Java version:"
+                echo "Checking Java installation"
                 java -version
-                
+                if %errorlevel% neq 0 (
+                  echo "Java not found, checking for AdoptOpenJDK..."
+                  where java
+                )
+
+                echo "Setting JAVA_HOME if not set"
+                if "%JAVA_HOME%"=="" (
+                  set JAVA_HOME=C:\Program Files\Amazon\Corretto\jdk17.0.21_0
+                )
+                echo JAVA_HOME=%JAVA_HOME%
+
                 echo "Creating .env file"
                 echo USER_EMAIL=$(USER_EMAIL) > .env
                 echo USER_PASSWORD=$(USER_PASSWORD) >> .env
-                
+
                 echo "Android SDK pre-installed paths:"
-                echo %ANDROID_HOME%
-                echo %ANDROID_SDK_ROOT%
+                echo ANDROID_HOME=%ANDROID_HOME%
+                echo ANDROID_SDK_ROOT=%ANDROID_SDK_ROOT%
+
+                echo "Checking if APK exists"
+                if exist app\app-release.apk (
+                  echo "APK found"
+                ) else (
+                  echo "WARNING: APK not found at app\app-release.apk"
+                )
 
           - task: CmdLine@2
             displayName: 'Start Android Emulator & Appium'
@@ -77,9 +87,18 @@ stages:
                 echo no | "%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager.bat" create avd -n Pixel_7a -k "system-images;android-33;google_apis;x86_64" --force
                 start "" "%ANDROID_HOME%\emulator\emulator.exe" -avd Pixel_7a -no-window -no-audio -no-snapshot -no-boot-anim
                 "%ANDROID_HOME%\platform-tools\adb.exe" wait-for-device
-                
+
+                echo "Waiting for emulator to fully boot..."
+                timeout /t 60
+
                 echo "Iniciando Appium em segundo plano..."
-                start "" npx appium --allow-cors
+                start /B cmd /c "npx appium --allow-cors > appium.log 2>&1"
+
+                echo "Waiting for Appium to start..."
+                timeout /t 10
+
+                echo "Appium log:"
+                type appium.log
 
           - task: CmdLine@2
             displayName: 'Run E2E Tests'
@@ -91,9 +110,11 @@ stages:
             displayName: 'Publish Test Results'
             condition: always()
             inputs:
-              testResultsFiles: '**/results/reports/*.json'
-              testRunTitle: 'E2E Test Results'
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '**/results/junit.xml'
+              testRunTitle: 'E2E Test Results - FPH Mobile'
               mergeTestResults: true
+              failTaskOnFailedTests: false
 
           - task: PublishBuildArtifacts@1
             displayName: 'Publish Test Artifacts'
